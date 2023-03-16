@@ -18,3 +18,6 @@ _build
 rebar3.crashdump
 *~
 *.tmp
+
+src/gpb_text_lexer.erl
+src/gpb_text_parser.erl
