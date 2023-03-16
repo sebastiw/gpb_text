@@ -1,0 +1,3 @@
+message MessageWithMap {
+  map<string, int32> my_map = 1;
+}

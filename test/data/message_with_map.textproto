@@ -1,0 +1,11 @@
+# proto-file: message_with_map.proto
+# proto-message: MessageWithMap
+
+my_map { key: "entry1" value: 1 }
+my_map { key: "entry2" value: 2 }
+
+# You can also use the list syntax
+my_map: [
+  { key: "entry3" value: 3 },
+  { key: "entry4" value: 4 }
+]

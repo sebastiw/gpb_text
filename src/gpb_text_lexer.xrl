@@ -81,6 +81,17 @@ ESCAPE = (\\[abfnrtv?\\\'\"]|\\{OCT}{1,3}|\\x{HEX}{1,2}|\\u{HEX}{4}|\\U000{HEX}{
        %% | "\U0010",
        %%   hex, hex, hex, hex ;        (* Unicode code point between 0x100000 and 0x10ffff *)
 
+%% FieldName     = ExtensionName | AnyName | IDENT ;
+%% ExtensionName = "[", TypeName, "]" ;
+%% AnyName       = "[", Domain, "/", TypeName, "]" ;
+%% TypeName      = IDENT, { ".", IDENT } ;
+%% Domain        = IDENT, { ".", IDENT } ;
+
+TYPE_NAME      = {IDENT}(\.{IDENT})*
+DOMAIN         = {IDENT}(\.{IDENT})*
+EXTENSION_NAME = \[{TYPE_NAME}\]
+ANY_NAME       = \[{DOMAIN}/{TYPE_NAME}\]
+
 Rules.
 
 {DOUBLE_STRING} : {token, {string, TokenLine, trim($\", TokenChars)}}.
@@ -114,8 +125,8 @@ Rules.
 %% TypeName      = IDENT, { ".", IDENT } ;
 %% Domain        = IDENT, { ".", IDENT } ;
 
-\[{IDENT}(\.{IDENT})*\] : {token, {extension_name, TokenLine, TokenChars}}.
-\[{IDENT}(\.{IDENT})*\/{IDENT}(\.{IDENT})*\] : {token, {any_name, TokenLine, TokenChars}}.
+{EXTENSION_NAME} : {token, {extension_name, TokenLine, TokenChars}}.
+{ANY_NAME} : {token, {any_name, TokenLine, TokenChars}}.
 
 %% Field        = ScalarField | MessageField ;
 %% MessageField = FieldName, [ ":" ], ( MessageValue | MessageList ) [ ";" | "," ];

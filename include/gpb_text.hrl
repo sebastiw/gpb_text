@@ -1,3 +1,4 @@
 -record(message, {name, fields}).
 -record(scalar, {key, value}).
-
+-record(extension, {name, parts}).
+-record(any, {name, domain_parts, type_parts}).
