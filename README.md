@@ -16,6 +16,6 @@ Usage
 
     1> File = "path/to/your.textproto".
     2> {ok, FileContent} = file:read_file(File).
-    3> {ok, Symbols, _} = gpb_text_lexer:string(binary_to_list(F)).
+    3> {ok, Symbols, _} = gpb_text_lexer:string(binary_to_list(FileContent)).
     4> {ok, Message} = gpb_text_parser:parse(Symbols).
 

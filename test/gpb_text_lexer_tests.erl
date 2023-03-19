@@ -49,9 +49,13 @@ number_token_comma_separator_test() ->
 
 number_token_followed_by_non_identifier_test() ->
     Tokens = gpb_text_lexer:string("foo: 10[com.foo.ext]: 20"),
-    ?assertMatch({ok, [{identifier, _, "foo"}, _,
+    ?assertMatch({ok, [{identifier, _, "foo"},
+                       {':', _, ":"},
                        {dec_unsigned_integer, _, 10},
-                       {extension_name, _, "[com.foo.ext]"}, _,
+                       {'[', _, "["},
+                       {extension, _, "com.foo.ext"},
+                       {']', _, "]"},
+                       {':', _, ":"},
                        {dec_unsigned_integer, _, 20}], _}, Tokens).
 
 %% not possible to test, lexer will accept this.
@@ -151,13 +155,17 @@ regular_message_test() ->
 
 regular_extended_scalar_test() ->
     Tokens = gpb_text_lexer:string("[com.foo.ext.scalar]: 10"),
-    ?assertMatch({ok, [{extension_name, _, "[com.foo.ext.scalar]"},
+    ?assertMatch({ok, [{'[', _, "["},
+                       {extension, _, "com.foo.ext.scalar"},
+                       {']', _, "]"},
                        {':', _, ":"},
                        {dec_unsigned_integer, _, 10}], _}, Tokens).
 
 regular_extended_message_test() ->
     Tokens = gpb_text_lexer:string("[com.foo.ext.message] { foo: \"bar\" }"),
-    ?assertMatch({ok, [{extension_name, _, "[com.foo.ext.message]"},
+    ?assertMatch({ok, [{'[', _, "["},
+                       {extension, _, "com.foo.ext.message"},
+                       {']', _, "]"},
                        {'{', _, "{"},
                        {identifier, _, "foo"},
                        {':', _, ":"},
@@ -170,7 +178,11 @@ regular_any_value_test() ->
                                     "}"),
     ?assertMatch({ok, [{identifier, _, "any_value"},
                        {'{', _, "{"},
-                       {any_name, _, "[type.googleapis.com/com.foo.any]"},
+                       {'[', _, "["},
+                       {extension, _, "type.googleapis.com"},
+                       {'/', _, "/"},
+                       {extension, _, "com.foo.any"},
+                       {']', _, "]"},
                        {'{', _, "{"},
                        {identifier, _, "foo"},
                        {':', _, ":"},

@@ -81,17 +81,6 @@ ESCAPE = (\\[abfnrtv?\\\'\"]|\\{OCT}{1,3}|\\x{HEX}{1,2}|\\u{HEX}{4}|\\U000{HEX}{
        %% | "\U0010",
        %%   hex, hex, hex, hex ;        (* Unicode code point between 0x100000 and 0x10ffff *)
 
-%% FieldName     = ExtensionName | AnyName | IDENT ;
-%% ExtensionName = "[", TypeName, "]" ;
-%% AnyName       = "[", Domain, "/", TypeName, "]" ;
-%% TypeName      = IDENT, { ".", IDENT } ;
-%% Domain        = IDENT, { ".", IDENT } ;
-
-TYPE_NAME      = {IDENT}(\.{IDENT})*
-DOMAIN         = {IDENT}(\.{IDENT})*
-EXTENSION_NAME = \[{TYPE_NAME}\]
-ANY_NAME       = \[{DOMAIN}/{TYPE_NAME}\]
-
 Rules.
 
 {DOUBLE_STRING} : {token, {string, TokenLine, trim($\", TokenChars)}}.
@@ -108,9 +97,10 @@ Rules.
 %% OctUnsignedInteger = OCT_INT ;
 %% HexUnsignedInteger = HEX_INT ;
 
--({WHITESPACE}*|{COMMENT})*{FLOAT}          : {token, {float, TokenLine, to_float(TokenChars)}}.
-({WHITESPACE}*|{COMMENT})*{FLOAT}          : {token, {float, TokenLine, to_float(TokenChars)}}.
-{IDENT}            : {token, {identifier, TokenLine, TokenChars}}.
+-({WHITESPACE}*|{COMMENT})*{FLOAT}           : {token, {float, TokenLine, to_float(TokenChars)}}.
+({WHITESPACE}*|{COMMENT})*{FLOAT}            : {token, {float, TokenLine, to_float(TokenChars)}}.
+{IDENT}(\.{IDENT})+                          : {token, {extension, TokenLine, TokenChars}}.
+{IDENT}                                      : {token, {identifier, TokenLine, TokenChars}}.
 -({WHITESPACE}*|{COMMENT})*{IDENT}           : {token, {signed_identifier, TokenLine, TokenChars}}.
 -({WHITESPACE}*|{COMMENT})*{DEC_INT}         : {token, {dec_signed_integer, TokenLine, to_int(10, TokenChars)}}.
 -({WHITESPACE}*|{COMMENT})*{OCT_INT}         : {token, {oct_signed_integer, TokenLine, to_int(8, TokenChars)}}.
@@ -118,15 +108,6 @@ Rules.
 {DEC_INT}          : {token, {dec_unsigned_integer, TokenLine, to_int(10, TokenChars)}}.
 {OCT_INT}          : {token, {oct_unsigned_integer, TokenLine, to_int(8, TokenChars)}}.
 {HEX_INT}          : {token, {hex_unsigned_integer, TokenLine, to_int(16, TokenChars)}}.
-
-%% FieldName     = ExtensionName | AnyName | IDENT ;
-%% ExtensionName = "[", TypeName, "]" ;
-%% AnyName       = "[", Domain, "/", TypeName, "]" ;
-%% TypeName      = IDENT, { ".", IDENT } ;
-%% Domain        = IDENT, { ".", IDENT } ;
-
-{EXTENSION_NAME} : {token, {extension_name, TokenLine, TokenChars}}.
-{ANY_NAME} : {token, {any_name, TokenLine, TokenChars}}.
 
 %% Field        = ScalarField | MessageField ;
 %% MessageField = FieldName, [ ":" ], ( MessageValue | MessageList ) [ ";" | "," ];
@@ -153,6 +134,7 @@ Rules.
 \> : {token, {'>', TokenLine, TokenChars}}.
 \: : {token, {':', TokenLine, TokenChars}}.
 \, : {token, {',', TokenLine, TokenChars}}.
+\/ : {token, {'/', TokenLine, TokenChars}}.
 
 {WHITESPACE}+ : skip_token.
 {COMMENT}     : skip_token.
