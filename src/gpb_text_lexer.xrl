@@ -86,46 +86,18 @@ Rules.
 {DOUBLE_STRING} : {token, {string, TokenLine, trim($\", TokenChars)}}.
 {SINGLE_STRING} : {token, {string, TokenLine, trim($\', TokenChars)}}.
 
-%% String             = STRING, { STRING } ;
-%% Float              = [ "-" ], FLOAT ;
-%% Identifier         = IDENT ;
-%% SignedIdentifier   = "-", IDENT ;   (* For example, "-inf" *)
-%% DecSignedInteger   = "-", DEC_INT ;
-%% OctSignedInteger   = "-", OCT_INT ;
-%% HexSignedInteger   = "-", HEX_INT ;
-%% DecUnsignedInteger = DEC_INT ;
-%% OctUnsignedInteger = OCT_INT ;
-%% HexUnsignedInteger = HEX_INT ;
+{FLOAT}              : {token, {float, TokenLine, to_float(TokenChars)}}.
+{IDENT}              : {token, {identifier, TokenLine, TokenChars}}.
+{DEC_INT}            : {token, {integer, TokenLine, to_int(10, TokenChars)}}.
+{OCT_INT}            : {token, {integer, TokenLine, to_int(8, TokenChars)}}.
+{HEX_INT}            : {token, {integer, TokenLine, to_int(16, TokenChars)}}.
 
--({WHITESPACE}*|{COMMENT})*{FLOAT}           : {token, {float, TokenLine, to_float(TokenChars)}}.
-({WHITESPACE}*|{COMMENT})*{FLOAT}            : {token, {float, TokenLine, to_float(TokenChars)}}.
-{IDENT}(\.{IDENT})+                          : {token, {extension, TokenLine, TokenChars}}.
-{IDENT}                                      : {token, {identifier, TokenLine, TokenChars}}.
--({WHITESPACE}*|{COMMENT})*{IDENT}           : {token, {signed_identifier, TokenLine, TokenChars}}.
--({WHITESPACE}*|{COMMENT})*{DEC_INT}         : {token, {dec_signed_integer, TokenLine, to_int(10, TokenChars)}}.
--({WHITESPACE}*|{COMMENT})*{OCT_INT}         : {token, {oct_signed_integer, TokenLine, to_int(8, TokenChars)}}.
--({WHITESPACE}*|{COMMENT})*{HEX_INT}         : {token, {hex_signed_integer, TokenLine, to_int(16, TokenChars)}}.
-{DEC_INT}          : {token, {dec_unsigned_integer, TokenLine, to_int(10, TokenChars)}}.
-{OCT_INT}          : {token, {oct_unsigned_integer, TokenLine, to_int(8, TokenChars)}}.
-{HEX_INT}          : {token, {hex_unsigned_integer, TokenLine, to_int(16, TokenChars)}}.
+{FLOAT}{IDENT}       : {token, {error, "Missing whitespace between float and identifier: "++TokenChars}}.
+{DEC_INT}{IDENT}     : {token, {error, "Missing whitespace between integer and identifier: "++TokenChars}}.
+{OCT_INT}{IDENT}     : {token, {error, "Missing whitespace between integer and identifier: "++TokenChars}}.
+{OCT_INT}{IDENT}     : {token, {error, "Missing whitespace between integer and identifier: "++TokenChars}}.
 
-%% Field        = ScalarField | MessageField ;
-%% MessageField = FieldName, [ ":" ], ( MessageValue | MessageList ) [ ";" | "," ];
-%% ScalarField  = FieldName, ":",     ( ScalarValue  | ScalarList  ) [ ";" | "," ];
-%% MessageList  = "[", [ MessageValue, { ",", MessageValue } ], "]" ;
-%% ScalarList   = "[", [ ScalarValue,  { ",", ScalarValue  } ], "]" ;
-%% MessageValue = "{", Message, "}" | "<", Message, ">" ;
-%% ScalarValue  = String
-%%              | Float
-%%              | Identifier
-%%              | SignedIdentifier
-%%              | DecSignedInteger
-%%              | OctSignedInteger
-%%              | HexSignedInteger
-%%              | DecUnsignedInteger
-%%              | OctUnsignedInteger
-%%              | HexUnsignedInteger ;
-
+\- : {token, {'-', TokenLine, TokenChars}}.
 \[ : {token, {'[', TokenLine, TokenChars}}.
 \] : {token, {']', TokenLine, TokenChars}}.
 \{ : {token, {'{', TokenLine, TokenChars}}.
@@ -135,6 +107,7 @@ Rules.
 \: : {token, {':', TokenLine, TokenChars}}.
 \, : {token, {',', TokenLine, TokenChars}}.
 \/ : {token, {'/', TokenLine, TokenChars}}.
+\. : {token, {'.', TokenLine, TokenChars}}.
 
 {WHITESPACE}+ : skip_token.
 {COMMENT}     : skip_token.
@@ -144,13 +117,8 @@ Erlang code.
 trim(Char, String) ->
     string:trim(String, both, [Char]).
 
-remove_comments_and_whitespace(RawString) ->
-    String0 = re:replace(RawString, "#[^\n]*\n", "", [global]),
-    re:replace(String0, "[[:space:]]", "", [global, {return, list}]).
-
 to_float(RawString) ->
-    String0 = remove_comments_and_whitespace(RawString),
-    String1 = re:replace(String0, "[fF]$", "", [{return, list}]),
+    String1 = re:replace(RawString, "[fF]$", "", [{return, list}]),
     case string:find(String1, ".") of
         nomatch ->
             list_to_float(String1 ++ ".0");
@@ -159,5 +127,4 @@ to_float(RawString) ->
     end.
 
 to_int(Base, RawString) ->
-    String = remove_comments_and_whitespace(RawString),
-    list_to_integer(String, Base).
+    list_to_integer(RawString, Base).

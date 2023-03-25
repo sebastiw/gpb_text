@@ -3,6 +3,24 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("gpb_text/include/gpb_text.hrl").
 
+signed_floating_point_invalid_whitespace_test() ->
+    {ok, Symbols, _} = gpb_text_lexer:string("value: 2 . 0"),
+    ExpectedMsg = {error,{1, gpb_text_parser,
+                          ["syntax error before: ", ["\".\""]]}},
+    ?assertMatch(ExpectedMsg, gpb_text_parser:parse(Symbols)).
+
+colon_delimiter_non_valid_scalar_test() ->
+    {ok, Symbols, _} = gpb_text_lexer:string("scalar 10"),
+    ExpectedMsg = {error,{1, gpb_text_parser,
+                          ["syntax error before: ", "10"]}},
+    ?assertMatch(ExpectedMsg, gpb_text_parser:parse(Symbols)).
+
+colon_delimiter_non_valid_scalar_list_test() ->
+    {ok, Symbols, _} = gpb_text_lexer:string("scalars [1, 2, 3]"),
+    ExpectedMsg = {error,{1, gpb_text_parser,
+                          ["syntax error before: ", "1"]}},
+    ?assertMatch(ExpectedMsg, gpb_text_parser:parse(Symbols)).
+
 default_test() ->
     Symbols = get_symbols_from_file("default_example.textproto"),
     ExpectedMsg = [#scalar{key = name, value = <<"John Smith">>},

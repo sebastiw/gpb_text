@@ -12,20 +12,34 @@
 
 signed_floating_point_no_additional_whitespace_test() ->
     Tokens = gpb_text_lexer:string("value: -2.0"),
-    ?assertMatch({ok, [{identifier, _, "value"}, _, {float, _, -2.0}], _}, Tokens).
+    ?assertMatch({ok, [{identifier, _, "value"},
+                       {':', _, ":"},
+                       {'-', _, "-"},
+                       {float, _, 2.0}], _}, Tokens).
 
 signed_floating_point_whitespace_between_test() ->
     Tokens = gpb_text_lexer:string("value: - 2.0"),
-    ?assertMatch({ok, [{identifier, _, "value"}, _, {float, _, -2.0}], _}, Tokens).
+    ?assertMatch({ok, [{identifier, _, "value"},
+                       {':', _, ":"},
+                       {'-', _, "-"},
+                       {float, _, 2.0}], _}, Tokens).
 
 %% A person who actually does this should probably be hanged.
 signed_floating_point_whitespace_and_comment_between_test() ->
     Tokens = gpb_text_lexer:string("value: -\n  # comment\n 2.0"),
-    ?assertMatch({ok, [{identifier, _, "value"}, _, {float, _, -2.0}], _}, Tokens).
+    ?assertMatch({ok, [{identifier, _, "value"},
+                       {':', _, ":"},
+                       {'-', _, "-"},
+                       {float, _, 2.0}], _}, Tokens).
 
 signed_floating_point_invalid_whitespace_test() ->
+    %% Lexically ok
     Tokens = gpb_text_lexer:string("value: 2 . 0"),
-    ?assertMatch({error, {_, _, {illegal, _}}, _}, Tokens).
+    ?assertMatch({ok, [{identifier, _, "value"},
+                       {':', _, ":"},
+                       {integer, _, 2},
+                       {'.', _, "."},
+                       {integer, _, 0}], _}, Tokens).
 
 %% foo: 10 bar: 20           # Valid: whitespace separates '10' and 'bar'
 %% foo: 10,bar: 20           # Valid: ',' separates '10' and 'bar'
@@ -36,32 +50,40 @@ signed_floating_point_invalid_whitespace_test() ->
 number_token_not_followed_by_identifier_test() ->
     Tokens = gpb_text_lexer:string("foo: 10 bar: 20"),
     ?assertMatch({ok, [{identifier, _, "foo"}, _,
-                       {dec_unsigned_integer, _, 10},
+                       {integer, _, 10},
                        {identifier, _, "bar"}, _,
-                       {dec_unsigned_integer, _, 20}], _}, Tokens).
+                       {integer, _, 20}], _}, Tokens).
 
 number_token_comma_separator_test() ->
     Tokens = gpb_text_lexer:string("foo: 10,bar: 20"),
     ?assertMatch({ok, [{identifier, _, "foo"}, _,
-                       {dec_unsigned_integer, _, 10}, _,
+                       {integer, _, 10}, _,
                        {identifier, _, "bar"}, _,
-                       {dec_unsigned_integer, _, 20}], _}, Tokens).
+                       {integer, _, 20}], _}, Tokens).
 
 number_token_followed_by_non_identifier_test() ->
     Tokens = gpb_text_lexer:string("foo: 10[com.foo.ext]: 20"),
     ?assertMatch({ok, [{identifier, _, "foo"},
                        {':', _, ":"},
-                       {dec_unsigned_integer, _, 10},
+                       {integer, _, 10},
                        {'[', _, "["},
-                       {extension, _, "com.foo.ext"},
+                       {identifier, _, "com"},
+                       {'.', _, "."},
+                       {identifier, _, "foo"},
+                       {'.', _, "."},
+                       {identifier, _, "ext"},
                        {']', _, "]"},
                        {':', _, ":"},
-                       {dec_unsigned_integer, _, 20}], _}, Tokens).
+                       {integer, _, 20}], _}, Tokens).
 
 %% not possible to test, lexer will accept this.
-%% number_token_invalid_non_space_test() ->
-%%     Tokens = gpb_text_lexer:string("foo: 10bar: 20"),
-%%     ?assertMatch({error, {_, _, {illegal, _}}, _}, Tokens).
+number_token_invalid_non_space_test() ->
+    Tokens = gpb_text_lexer:string("foo: 10bar: 20"),
+    ?assertMatch({ok,[{identifier, _, "foo"},
+                      {':', _, ":"},
+                      {error, "Missing whitespace between integer and identifier: 10bar"},
+                      {':', _, ":"},
+                      {integer, _, 20}], _}, Tokens).
 
 %% Decimal integers can be cast as floating-point values by using the
 %% F and f suffixes. Example:
@@ -73,7 +95,7 @@ number_token_followed_by_non_identifier_test() ->
 decimal_integer_cast_integer_value_test() ->
     Tokens = gpb_text_lexer:string("foo: 10"),
     ?assertMatch({ok, [{identifier, _, "foo"}, _,
-                       {dec_unsigned_integer, _, 10}], _}, Tokens).
+                       {integer, _, 10}], _}, Tokens).
 
 decimal_integer_cast_floating_point_value_test() ->
     Tokens = gpb_text_lexer:string("foo: 10f"),
@@ -96,9 +118,10 @@ decimal_integer_cast_floating_point_literal_test() ->
 
 string_long_quote_test() ->
     Tokens = gpb_text_lexer:string("quote: \"When we got into office, the thing that surprised me most was to find \"\n"
-                                    "       \"that things were just as bad as we'd been saying they were.\n\n\"\n"
-                                    "       \"  -- John F. Kennedy\""),
-    ?assertMatch({ok, [{identifier, _, "quote"}, _,
+                                   "       \"that things were just as bad as we'd been saying they were.\n\n\"\n"
+                                   "       \"  -- John F. Kennedy\""),
+    ?assertMatch({ok, [{identifier, _, "quote"},
+                       {':', _, ":"},
                        {string, _, "When we got into office, the thing that surprised me most was to find "},
                        {string, _, "that things were just as bad as we'd been saying they were.\n\n"},
                        {string, _, "  -- John F. Kennedy"}
@@ -142,7 +165,7 @@ single_string_multiple_parts_no_whitespace_test() ->
 
 regular_scalar_test() ->
     Tokens = gpb_text_lexer:string("reg_scalar: 10"),
-    ?assertMatch({ok, [{identifier, _, "reg_scalar"}, _, {dec_unsigned_integer, _, 10}], _}, Tokens).
+    ?assertMatch({ok, [{identifier, _, "reg_scalar"}, _, {integer, _, 10}], _}, Tokens).
 
 regular_message_test() ->
     Tokens = gpb_text_lexer:string("reg_message { foo: \"bar\" }"),
@@ -156,15 +179,27 @@ regular_message_test() ->
 regular_extended_scalar_test() ->
     Tokens = gpb_text_lexer:string("[com.foo.ext.scalar]: 10"),
     ?assertMatch({ok, [{'[', _, "["},
-                       {extension, _, "com.foo.ext.scalar"},
+                       {identifier, _, "com"},
+                       {'.', _, "."},
+                       {identifier, _, "foo"},
+                       {'.', _, "."},
+                       {identifier, _, "ext"},
+                       {'.', _, "."},
+                       {identifier, _, "scalar"},
                        {']', _, "]"},
                        {':', _, ":"},
-                       {dec_unsigned_integer, _, 10}], _}, Tokens).
+                       {integer, _, 10}], _}, Tokens).
 
 regular_extended_message_test() ->
     Tokens = gpb_text_lexer:string("[com.foo.ext.message] { foo: \"bar\" }"),
     ?assertMatch({ok, [{'[', _, "["},
-                       {extension, _, "com.foo.ext.message"},
+                       {identifier, _, "com"},
+                       {'.', _, "."},
+                       {identifier, _, "foo"},
+                       {'.', _, "."},
+                       {identifier, _, "ext"},
+                       {'.', _, "."},
+                       {identifier, _, "message"},
                        {']', _, "]"},
                        {'{', _, "{"},
                        {identifier, _, "foo"},
@@ -179,9 +214,17 @@ regular_any_value_test() ->
     ?assertMatch({ok, [{identifier, _, "any_value"},
                        {'{', _, "{"},
                        {'[', _, "["},
-                       {extension, _, "type.googleapis.com"},
+                       {identifier, _, "type"},
+                       {'.', _, "."},
+                       {identifier, _, "googleapis"},
+                       {'.', _, "."},
+                       {identifier, _, "com"},
                        {'/', _, "/"},
-                       {extension, _, "com.foo.any"},
+                       {identifier, _, "com"},
+                       {'.', _, "."},
+                       {identifier, _, "foo"},
+                       {'.', _, "."},
+                       {identifier, _, "any"},
                        {']', _, "]"},
                        {'{', _, "{"},
                        {identifier, _, "foo"},
@@ -207,23 +250,23 @@ colon_delimiter_scalar_test() ->
     Tokens = gpb_text_lexer:string("scalar: 10"),
     ?assertMatch({ok, [{identifier, _, "scalar"},
                        {':', _, ":"},
-                       {dec_unsigned_integer, _, 10}], _}, Tokens).
+                       {integer, _, 10}], _}, Tokens).
 
 colon_delimiter_non_valid_scalar_test() ->
     %% Lexically ok
     Tokens = gpb_text_lexer:string("scalar 10"),
     ?assertMatch({ok, [{identifier, _, "scalar"},
-                       {dec_unsigned_integer, _, 10}], _}, Tokens).
+                       {integer, _, 10}], _}, Tokens).
 
 colon_delimiter_scalar_list_test() ->
     Tokens = gpb_text_lexer:string("scalars: [1, 2, 3]"),
     ?assertMatch({ok, [{identifier, _, "scalars"}, _,
                        {'[', _, "["},
-                       {dec_unsigned_integer, _, 1},
+                       {integer, _, 1},
                        {',', _, ","},
-                       {dec_unsigned_integer, _, 2},
+                       {integer, _, 2},
                        {',', _, ","},
-                       {dec_unsigned_integer, _, 3},
+                       {integer, _, 3},
                        {']', _, "]"}], _}, Tokens).
 
 colon_delimiter_non_valid_scalar_list_test() ->
@@ -231,11 +274,11 @@ colon_delimiter_non_valid_scalar_list_test() ->
     Tokens = gpb_text_lexer:string("scalars [1, 2, 3]"),
     ?assertMatch({ok, [{identifier, _, "scalars"},
                        {'[', _, "["},
-                       {dec_unsigned_integer, _, 1},
+                       {integer, _, 1},
                        {',', _, ","},
-                       {dec_unsigned_integer, _, 2},
+                       {integer, _, 2},
                        {',', _, ","},
-                       {dec_unsigned_integer, _, 3},
+                       {integer, _, 3},
                        {']', _, "]"}], _}, Tokens).
 
 colon_delimiter_message_with_colon_test() ->
