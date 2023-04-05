@@ -42,7 +42,7 @@ empty_list -> '[' ']' : [].
 %% FieldName     = ExtensionName | AnyName | IDENT ;
 field_name -> extension_name : '$1'.
 field_name -> any_name : '$1'.
-field_name -> identifier : to_atom('$1').
+field_name -> identifier : to_field_name('$1').
 
 %% ExtensionName = "[", TypeName, "]" ;
 extension_name -> '[' type_name ']' : to_ext('$2').
@@ -127,8 +127,8 @@ to_neg_float(S) ->
 to_float(S) ->
     to_value(S).
 
-to_atom(I) ->
-    list_to_atom(to_value(I)).
+to_field_name(I) ->
+    to_value(I).
 
 to_identifier(I) ->
     ident_to_atom(I).
