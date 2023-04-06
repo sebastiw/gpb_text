@@ -59,7 +59,7 @@ rename_fields(Message, _Opts) ->
     %% Renames = proplists:get_value(renames, Opts, []),
     Message.
 
--spec can_post_process(string()) -> {true, {module(), atom()}} | false.
+-spec can_post_process(string()) -> {true, {module(), string()}} | false.
 can_post_process(FileContent) ->
     case find_proto_filename(FileContent) of
         {ok, ProtoFile} ->
@@ -68,12 +68,14 @@ can_post_process(FileContent) ->
                     case find_proto_message(FileContent) of
                         {ok, StartMsg} ->
                             {true, {ProtoMod, StartMsg}};
-                        false ->
+                        not_found ->
                             false
                     end;
-                false ->
+                {error, {not_loaded, _}} ->
                     false
-            end
+            end;
+        not_found ->
+            false
     end.
 
 -spec post_process_message(parsed_forms(), module(), gpb_fields()) -> map().
@@ -81,22 +83,26 @@ post_process_message(Fs, ProtoMod, BaseMsgDefs) ->
     process_fields(ProtoMod, BaseMsgDefs, Fs, #{}).
 
 base_msg_type(ProtoMod, MessageName) ->
-    Pkt = ProtoMod:get_package_name(),
-    MsgName = list_to_atom(atom_to_list(Pkt) ++ "." ++ MessageName),
-    ProtoMod:fetch_msg_def(MsgName).
+    case ProtoMod:get_package_name() of
+        undefined ->
+            MsgName = list_to_atom(MessageName),
+            ProtoMod:fetch_msg_def(MsgName);
+        Pkt ->
+            MsgName = list_to_atom(atom_to_list(Pkt) ++ "." ++ MessageName),
+            ProtoMod:fetch_msg_def(MsgName)
+    end.
 
 find_def(FieldName, Defs) ->
     FName = list_to_atom(FieldName),
     case lists:keyfind(FName, #field.name, Defs) of
         false ->
-            IsOneOf = [F || #gpb_oneof{fields = Fs} <- Defs,
-                            #field{name = N} = F <- Fs,
-                            N =:= FName],
-            case IsOneOf of
-                [] ->
+            OneOfFields = [F || #gpb_oneof{fields = Fs} <- Defs,
+                                F <- Fs],
+            case lists:keyfind(FName, #field.name, OneOfFields) of
+                false ->
                     throw({error, {no_definition, FieldName, Defs}});
-                [F] ->
-                    F
+                F ->
+                    {oneof, F, OneOfFields}
             end;
         Field ->
             Field
@@ -112,8 +118,13 @@ process_fields(ProtoMod, Fields, [#scalar{key = K, value = V}|Fs], Acc) ->
 process_fields(ProtoMod, Fields, [#message{name = K, fields = Vs}|Fs], Acc) ->
     Field = find_def(K, Fields),
     case Field#field.occurrence of
-        repeated when is_list(hd(Vs)) ->
-            Vs2 = [add_to_acc(ProtoMod, Field, V, #{}) || V <- Vs],
+        repeated ->
+            Vs2 = case is_list(hd(Vs)) of
+                      true ->
+                          [add_to_acc(ProtoMod, Field, V, #{}) || V <- Vs];
+                      false ->
+                          [add_to_acc(ProtoMod, Field, Vs, #{})]
+                  end,
             Old = maps:get(Field#field.name, Acc, []),
             Acc2 = Acc#{Field#field.name => Old ++ Vs2},
             process_fields(ProtoMod, Fields, Fs, Acc2);
@@ -123,6 +134,18 @@ process_fields(ProtoMod, Fields, [#message{name = K, fields = Vs}|Fs], Acc) ->
     end.
 
 
+add_to_acc(ProtoMod, {oneof, F, OneOfFields}, Vs, Acc) ->
+    case [O || O <- OneOfFields, maps:is_key(O#field.name, Acc)] of
+        [] ->
+            add_to_acc(ProtoMod, F, Vs, Acc);
+        Others ->
+            New = [#{F#field.name => Vs}],
+            Old = [#{O#field.name => maps:get(O#field.name, Acc)} || O <- Others],
+            throw({error, {multiple_oneof, Old ++ New}})
+    end;
+add_to_acc(_ProtoMod, #field{type = {map,_,_}}, Vs, Acc) ->
+    [#scalar{key = "key", value = V1}, #scalar{key = "value", value = V2}|_] = Vs,
+    Acc#{V1 => V2};
 add_to_acc(ProtoMod, #field{type = {msg, Msg}, occurrence = repeated}, V, Acc) ->
     D = ProtoMod:fetch_msg_def(Msg),
     process_fields(ProtoMod, D, V, Acc);
@@ -159,7 +182,7 @@ to_map2(#scalar{key = Key, value = Value}, {Map, Opts}) ->
 to_map2(Fields, {Map, Opts}) when is_list(Fields) ->
     {[to_map(Fields, Opts)|Map], Opts}.
 
--spec find_proto_filename(string()) -> file:filename().
+-spec find_proto_filename(string()) -> not_found | {ok, string()}.
 find_proto_filename(FileContent) ->
     case re:run(FileContent, <<".*proto-file:\s?([^\n]+).*">>, [{capture, [1], list}]) of
         nomatch ->
@@ -168,7 +191,7 @@ find_proto_filename(FileContent) ->
             {ok, Syntax}
     end.
 
--spec find_proto_message(string()) -> string().
+-spec find_proto_message(string()) -> not_found | {ok, string()}.
 find_proto_message(FileContent) ->
     case re:run(FileContent, <<".*proto-message:\s?([^\n]+).*">>, [{capture, [1], list}]) of
         nomatch ->
@@ -185,7 +208,7 @@ get_proto_mod(FileName) ->
         {file, _} ->
             {ok, ProtoFileName};
         false ->
-            {error, {not_loaded, FileName}}
+            {error, {not_loaded, ProtoFileName}}
     end.
 
 -spec get_proto_defs(module()) -> gpb_defs:defs().

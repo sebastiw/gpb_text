@@ -1,0 +1,14 @@
+# proto-file: one_of_example.proto
+# proto-message: OneofExample
+
+# Valid: only one field from the Example oneof is set.
+message {
+  not_part_of_oneof: "always valid"
+  first_oneof_field: "valid by itself"
+}
+
+# Valid: the other oneof field is set.
+message {
+  not_part_of_oneof: "always valid"
+  second_oneof_field: "valid by itself"
+}

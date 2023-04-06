@@ -1,0 +1,9 @@
+# proto-file: one_of_example.proto
+# proto-message: OneofExample
+
+# Invalid: multiple fields from the Example oneof are set.
+message {
+  not_part_of_oneof: "always valid"
+  first_oneof_field: "not valid"
+  second_oneof_field: "not valid"
+}
