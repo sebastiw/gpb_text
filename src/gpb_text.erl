@@ -97,23 +97,6 @@ base_msg_type(ProtoMod, MessageName) ->
             ProtoMod:fetch_msg_def(MsgName)
     end.
 
-find_def(FieldName, Defs) ->
-    FName = list_to_atom(FieldName),
-    case lists:keyfind(FName, #field.name, Defs) of
-        false ->
-            OneOfFields = [F || #gpb_oneof{fields = Fs} <- Defs,
-                                F <- Fs],
-            case lists:keyfind(FName, #field.name, OneOfFields) of
-                false ->
-                    throw({error, {no_definition, FieldName, Defs}});
-                F ->
-                    {oneof, F, OneOfFields}
-            end;
-        Field ->
-            Field
-    end.
-
-
 process_fields(_ProtoMod, _Fields, [], Acc) ->
     Acc;
 process_fields(ProtoMod, Fields, [#scalar{key = K, value = V}|Fs], Acc) ->
@@ -122,7 +105,7 @@ process_fields(ProtoMod, Fields, [#scalar{key = K, value = V}|Fs], Acc) ->
     process_fields(ProtoMod, Fields, Fs, Acc2);
 process_fields(ProtoMod, Fields, [#message{name = K, fields = Vs}|Fs], Acc) ->
     Field = find_def(K, Fields),
-    case Field#field.occurrence of
+    case get_occurrence(Field) of
         repeated ->
             Vs2 = case is_list(hd(Vs)) of
                       true ->
@@ -169,6 +152,46 @@ add_to_acc(_ProtoMod, #field{occurrence = repeated} = F, V, Acc) ->
     Acc#{F#field.name => Old ++ [V]};
 add_to_acc(_ProtoMod, #field{} = F, V, Acc) ->
     Acc#{F#field.name => V}.
+
+find_def(FieldName, Defs) ->
+    FName = list_to_atom(FieldName),
+    case find_field_in_defs(FName, Defs) of
+        undefined ->
+            OneOfFields = get_oneof_fields(Defs),
+            case find_field_in_defs(FName, OneOfFields) of
+                undefined ->
+                    throw({error, {no_definition, FieldName, Defs}});
+                F ->
+                    {oneof, F, OneOfFields}
+            end;
+        Field ->
+            Field
+    end.
+
+find_field_in_defs(_FName, []) ->
+    undefined;
+find_field_in_defs(FName, [#field{name = FName} = F|_Defs]) ->
+    F;
+find_field_in_defs(FName, [#{name := FName} = F|_Defs]) ->
+    F;
+find_field_in_defs(FName, [{{_, FName}, _} = F|_Defs]) ->
+    F;
+find_field_in_defs(FName, [_|Defs]) ->
+    find_field_in_defs(FName, Defs).
+
+get_occurrence(#field{} = F) ->
+    F#field.occurrence;
+get_occurrence({_, #{} = F}) ->
+    maps:get(occurrence, F, undefined).
+
+get_oneof_fields([]) ->
+    [];
+get_oneof_fields([#gpb_oneof{} = F | Fs]) ->
+    F#gpb_oneof.fields ++ get_oneof_fields(Fs);
+get_oneof_fields([#{} = F | Fs]) ->
+    maps:get(fields, F, []) ++ get_oneof_fields(Fs);
+get_oneof_fields([_ | Fs]) ->
+    get_oneof_fields(Fs).
 
 -spec to_map(parsed_forms() | [list()]) -> map().
 to_map(Message) ->
