@@ -145,9 +145,13 @@ add_to_acc(ProtoMod, {oneof, F, OneOfFields}, Vs, Acc) ->
             Old = [#{O#field.name => maps:get(O#field.name, Acc)} || O <- Others],
             throw({error, {multiple_oneof, Old ++ New}})
     end;
-add_to_acc(_ProtoMod, #field{type = {map,_,_}}, Vs, Acc) ->
+add_to_acc(_ProtoMod, #field{type = {map, _, _}}, Vs, Acc) ->
     [#scalar{key = "key", value = V1}, #scalar{key = "value", value = V2}|_] = Vs,
     Acc#{V1 => V2};
+add_to_acc(ProtoMod, #field{type = {group, Grp}} = F, Vs, Acc) ->
+    D = ProtoMod:fetch_msg_def(Grp),
+    io:format("Grp : ~p~n", [D]),
+    Acc#{F#field.name => process_fields(ProtoMod, D, Vs, #{})};
 add_to_acc(ProtoMod, #field{type = {msg, Msg}, occurrence = repeated}, V, Acc) ->
     D = ProtoMod:fetch_msg_def(Msg),
     process_fields(ProtoMod, D, V, Acc);
@@ -208,8 +212,8 @@ get_proto_mod(FileName) ->
 
 -spec get_proto_mod(file:filename(), [option()]) -> {ok, module()} | {error, term()}.
 get_proto_mod(FileName, Opts) ->
-    Prefix = protolists:find(module_name_prefix, Opts, ""),
-    Suffix = protolists:find(module_name_suffix, Opts, ""),
+    Prefix = proplists:get_value(module_name_prefix, Opts, ""),
+    Suffix = proplists:get_value(module_name_suffix, Opts, ""),
 
     BName = filename:basename(FileName, ".proto"),
     ProtoFileName = list_to_atom(Prefix ++ BName ++ Suffix),
