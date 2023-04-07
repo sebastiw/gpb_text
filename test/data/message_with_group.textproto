@@ -1,0 +1,6 @@
+# proto-file: message_with_group.proto
+# proto-message: MessageWithGroup
+
+MyGroup {
+  my_value: 1
+}

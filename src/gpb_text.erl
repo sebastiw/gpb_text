@@ -1,6 +1,7 @@
 -module(gpb_text).
 
 -export([file/1,
+         file/2,
          scan/1,
          parse/1,
          to_map/1,
@@ -25,14 +26,15 @@
 file(FileName) ->
     file(FileName, []).
 
+-spec file(file:filename(), [option()]) -> map().
 file(FileName, Opts) ->
     FileContent = read(FileName),
     Parsed = parse(scan(FileContent)),
-    case can_post_process(FileContent) of
+    case can_post_process(FileContent, Opts) of
         {true, {ProtoMod, StartMsg}} ->
             Renamed = rename_fields(Parsed, ProtoMod),
             BaseMsg = base_msg_type(ProtoMod, StartMsg),
-            post_process_message(Renamed, ProtoMod, BaseMsg);
+            post_process_forms(Renamed, ProtoMod, BaseMsg);
         false ->
             to_map(Parsed, Opts)
     end.
@@ -59,11 +61,11 @@ rename_fields(Message, _Opts) ->
     %% Renames = proplists:get_value(renames, Opts, []),
     Message.
 
--spec can_post_process(string()) -> {true, {module(), string()}} | false.
-can_post_process(FileContent) ->
+-spec can_post_process(string(), [option()]) -> {true, {module(), string()}} | false.
+can_post_process(FileContent, Opts) ->
     case find_proto_filename(FileContent) of
         {ok, ProtoFile} ->
-            case get_proto_mod(ProtoFile) of
+            case get_proto_mod(ProtoFile, Opts) of
                 {ok, ProtoMod} ->
                     case find_proto_message(FileContent) of
                         {ok, StartMsg} ->
@@ -78,8 +80,8 @@ can_post_process(FileContent) ->
             false
     end.
 
--spec post_process_message(parsed_forms(), module(), gpb_fields()) -> map().
-post_process_message(Fs, ProtoMod, BaseMsgDefs) ->
+-spec post_process_forms(parsed_forms(), module(), gpb_fields()) -> map().
+post_process_forms(Fs, ProtoMod, BaseMsgDefs) ->
     process_fields(ProtoMod, BaseMsgDefs, Fs, #{}).
 
 base_msg_type(ProtoMod, MessageName) ->
@@ -202,8 +204,15 @@ find_proto_message(FileContent) ->
 
 -spec get_proto_mod(file:filename()) -> {ok, module()} | {error, term()}.
 get_proto_mod(FileName) ->
+    get_proto_mod(FileName, []).
+
+-spec get_proto_mod(file:filename(), [option()]) -> {ok, module()} | {error, term()}.
+get_proto_mod(FileName, Opts) ->
+    Prefix = protolists:find(module_name_prefix, Opts, ""),
+    Suffix = protolists:find(module_name_suffix, Opts, ""),
+
     BName = filename:basename(FileName, ".proto"),
-    ProtoFileName = list_to_atom(BName),
+    ProtoFileName = list_to_atom(Prefix ++ BName ++ Suffix),
     case code:is_loaded(ProtoFileName) of
         {file, _} ->
             {ok, ProtoFileName};

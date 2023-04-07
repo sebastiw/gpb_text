@@ -1,0 +1,5 @@
+message MessageWithGroup {
+  optional group MyGroup = 1 {
+    optional int32 my_value = 1;
+  }
+}

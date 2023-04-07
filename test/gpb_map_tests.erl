@@ -67,6 +67,13 @@ one_of_example_invalid_test() ->
                  #{second_oneof_field => <<"not valid">>}],
     ?assertException(throw, {error, {multiple_oneof, Expected}}, gpb_text:file(FileName)).
 
+message_with_group_test() ->
+    compile_and_load("message_with_group.proto"),
+    FileName = get_full_file_name("message_with_group.textproto"),
+    Expected = #{'MyGroup' => #{my_value => 1}},
+    ?assertEqual(Expected, gpb_text:file(FileName)).
+
+
 
 %% Helper functions
 
