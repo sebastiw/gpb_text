@@ -17,7 +17,8 @@
 
 -type message() :: #message{}.
 -type scalar() :: #scalar{}.
--type parsed_forms() :: [message() | scalar()].
+-type empty() :: #empty{}.
+-type parsed_forms() :: [message() | scalar() | empty()].
 -type gpb_fields() :: [#?gpb_field{}].
 
 -type option() :: gpb_compile:renames().
@@ -120,7 +121,11 @@ process_fields(ProtoMod, Fields, [#message{name = K, fields = Vs}|Fs], Acc) ->
         _ ->
             Acc2 = add_to_acc(ProtoMod, Field, Vs, Acc),
             process_fields(ProtoMod, Fields, Fs, Acc2)
-    end.
+    end;
+process_fields(ProtoMod, Fields, [#empty{name = K}|Fs], Acc) ->
+    Field = find_def(K, Fields),
+    Acc2 = add_to_acc(ProtoMod, Field, [], Acc),
+    process_fields(ProtoMod, Fields, Fs, Acc2).
 
 
 add_to_acc(ProtoMod, {oneof, F, OneOfFields}, Vs, Acc) ->
@@ -204,7 +209,11 @@ get_type(#{} = F) ->
 get_occurrence(#field{} = F) ->
     F#field.occurrence;
 get_occurrence(#{} = F) ->
-    maps:get(occurrence, F, undefined).
+    maps:get(occurrence, F, undefined);
+get_occurrence({oneof, F, _}) ->
+    get_occurrence(F).
+
+
 
 get_oneof_fields([]) ->
     [];
