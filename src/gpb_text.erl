@@ -181,6 +181,8 @@ find_field_in_defs(FName, [_|Defs]) ->
 
 get_occurrence(#field{} = F) ->
     F#field.occurrence;
+get_occurrence(#{} = F) ->
+    maps:get(occurrence, F, undefined);
 get_occurrence({_, #{} = F}) ->
     maps:get(occurrence, F, undefined).
 
