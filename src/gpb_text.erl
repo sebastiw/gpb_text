@@ -113,8 +113,9 @@ process_fields(ProtoMod, Fields, [#message{name = K, fields = Vs}|Fs], Acc) ->
                       false ->
                           [add_to_acc(ProtoMod, Field, Vs, #{})]
                   end,
-            Old = maps:get(Field#field.name, Acc, []),
-            Acc2 = Acc#{Field#field.name => Old ++ Vs2},
+            FieldName = get_name(Field),
+            Old = maps:get(FieldName, Acc, []),
+            Acc2 = Acc#{FieldName => Old ++ Vs2},
             process_fields(ProtoMod, Fields, Fs, Acc2);
         _ ->
             Acc2 = add_to_acc(ProtoMod, Field, Vs, Acc),
@@ -123,35 +124,44 @@ process_fields(ProtoMod, Fields, [#message{name = K, fields = Vs}|Fs], Acc) ->
 
 
 add_to_acc(ProtoMod, {oneof, F, OneOfFields}, Vs, Acc) ->
-    case [O || O <- OneOfFields, maps:is_key(O#field.name, Acc)] of
+    case [O || O <- OneOfFields, maps:is_key(get_name(O), Acc)] of
         [] ->
             add_to_acc(ProtoMod, F, Vs, Acc);
         Others ->
-            New = [#{F#field.name => Vs}],
-            Old = [#{O#field.name => maps:get(O#field.name, Acc)} || O <- Others],
+            FieldName = get_name(F),
+            New = [#{FieldName => Vs}],
+            Old = [#{get_name(O) => maps:get(get_name(O), Acc)} || O <- Others],
             throw({error, {multiple_oneof, Old ++ New}})
     end;
-add_to_acc(_ProtoMod, #field{type = {map, _, _}}, Vs, Acc) ->
-    [#scalar{key = "key", value = V1}, #scalar{key = "value", value = V2}|_] = Vs,
-    Acc#{V1 => V2};
-add_to_acc(ProtoMod, #field{type = {group, Grp}} = F, Vs, Acc) ->
-    D = ProtoMod:fetch_msg_def(Grp),
-    io:format("Grp : ~p~n", [D]),
-    Acc#{F#field.name => process_fields(ProtoMod, D, Vs, #{})};
-add_to_acc(ProtoMod, #field{type = {msg, Msg}, occurrence = repeated}, V, Acc) ->
-    D = ProtoMod:fetch_msg_def(Msg),
-    process_fields(ProtoMod, D, V, Acc);
-add_to_acc(ProtoMod, #field{type = {msg, Msg}} = F, V, Acc) ->
-    D = ProtoMod:fetch_msg_def(Msg),
-    Acc#{F#field.name => process_fields(ProtoMod, D, V, #{})};
-add_to_acc(_ProtoMod, #field{occurrence = repeated} = F, Vs, Acc) when is_list(Vs) ->
-    Old = maps:get(F#field.name, Acc, []),
-    Acc#{F#field.name => Old ++ Vs};
-add_to_acc(_ProtoMod, #field{occurrence = repeated} = F, V, Acc) ->
-    Old = maps:get(F#field.name, Acc, []),
-    Acc#{F#field.name => Old ++ [V]};
-add_to_acc(_ProtoMod, #field{} = F, V, Acc) ->
-    Acc#{F#field.name => V}.
+add_to_acc(ProtoMod, F, Vs, Acc) ->
+    Occurrence = get_occurrence(F),
+    case get_type(F) of
+        {map, _, _} ->
+            [#scalar{key = "key", value = V1}, #scalar{key = "value", value = V2}] = Vs,
+            Acc#{V1 => V2};
+        {group, Grp} ->
+            FieldName = get_name(F),
+            D = ProtoMod:fetch_msg_def(Grp),
+            Acc#{FieldName => process_fields(ProtoMod, D, Vs, #{})};
+        {msg, Msg} when Occurrence =:= repeated ->
+            D = ProtoMod:fetch_msg_def(Msg),
+            process_fields(ProtoMod, D, Vs, Acc);
+        {msg, Msg} ->
+            FieldName = get_name(F),
+            D = ProtoMod:fetch_msg_def(Msg),
+            Acc#{FieldName => process_fields(ProtoMod, D, Vs, #{})};
+        _ when Occurrence =:= repeated; is_list(Vs) ->
+            FieldName = get_name(F),
+            Old = maps:get(FieldName, Acc, []),
+            Acc#{FieldName => Old ++ Vs};
+        _ when Occurrence =:= repeated ->
+            FieldName = get_name(F),
+            Old = maps:get(FieldName, Acc, []),
+            Acc#{FieldName => Old ++ [Vs]};
+        _ ->
+            FieldName = get_name(F),
+            Acc#{FieldName => Vs}
+    end.
 
 find_def(FieldName, Defs) ->
     FName = list_to_atom(FieldName),
@@ -179,11 +189,21 @@ find_field_in_defs(FName, [{{_, FName}, _} = F|_Defs]) ->
 find_field_in_defs(FName, [_|Defs]) ->
     find_field_in_defs(FName, Defs).
 
+get_name(#field{} = F) ->
+    F#field.name;
+get_name(#{} = F) ->
+    maps:get(name, F, undefined);
+get_name({{msg, MsgName}, _}) ->
+    MsgName.
+
+get_type(#field{} = F) ->
+    F#field.type;
+get_type(#{} = F) ->
+    maps:get(type, F, undefined).
+
 get_occurrence(#field{} = F) ->
     F#field.occurrence;
 get_occurrence(#{} = F) ->
-    maps:get(occurrence, F, undefined);
-get_occurrence({_, #{} = F}) ->
     maps:get(occurrence, F, undefined).
 
 get_oneof_fields([]) ->
