@@ -85,12 +85,15 @@ post_process_forms(Fs, ProtoMod, BaseMsgDefs) ->
     process_fields(ProtoMod, BaseMsgDefs, Fs, #{}).
 
 base_msg_type(ProtoMod, MessageName) ->
-    case ProtoMod:get_package_name() of
-        undefined ->
-            MsgName = list_to_atom(MessageName),
+    Pkg = ProtoMod:get_package_name(),
+    case ProtoMod:uses_packages() of
+        false ->
+            FqBin = list_to_binary(MessageName),
+            MsgName = ProtoMod:fqbin_to_msg_name(FqBin),
             ProtoMod:fetch_msg_def(MsgName);
-        Pkt ->
-            MsgName = list_to_atom(atom_to_list(Pkt) ++ "." ++ MessageName),
+        true ->
+            FqBin = list_to_binary(atom_to_list(Pkg) ++ "." ++ MessageName),
+            MsgName = ProtoMod:fqbin_to_msg_name(FqBin),
             ProtoMod:fetch_msg_def(MsgName)
     end.
 
