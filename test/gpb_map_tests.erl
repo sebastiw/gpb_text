@@ -1,10 +1,10 @@
 -module(gpb_map_tests).
+%% No proto definition tied to textproto files
 
 -include_lib("eunit/include/eunit.hrl").
 
 map_test_data_test() ->
-    %% No proto definition found
-    FileName = get_full_file_name("map_test_data.textproto"),
+    FileName = gpb_text_test_utils:get_full_file_name("map_test_data.textproto"),
     Expected = #{"map_bool_bool" =>
                      #{"key" => true, "value" => true},
                  "map_fixed32_fixed32" =>
@@ -41,50 +41,4 @@ map_test_data_test() ->
                      #{"key" => 1, "value" => 1}},
     ?assertEqual(Expected, gpb_text:file(FileName)).
 
-message_with_map_test() ->
-    compile_and_load("message_with_map.proto"),
-    FileName = get_full_file_name("message_with_map.textproto"),
-    Expected = #{my_map =>
-                     [#{<<"entry1">> => 1},
-                      #{<<"entry2">> => 2},
-                      #{<<"entry3">> => 3},
-                      #{<<"entry4">> => 4}]},
-    ?assertEqual(Expected, gpb_text:file(FileName)).
 
-one_of_example_test() ->
-    compile_and_load("one_of_example.proto"),
-    FileName = get_full_file_name("one_of_example.textproto"),
-    Expected = #{message => [#{not_part_of_oneof => <<"always valid">>,
-                               first_oneof_field => <<"valid by itself">>},
-                             #{not_part_of_oneof => <<"always valid">>,
-                               second_oneof_field => <<"valid by itself">>}]},
-    ?assertEqual(Expected, gpb_text:file(FileName)).
-
-one_of_example_invalid_test() ->
-    compile_and_load("one_of_example.proto"),
-    FileName = get_full_file_name("one_of_example_invalid.textproto"),
-    Expected =  [#{first_oneof_field => <<"not valid">>},
-                 #{second_oneof_field => <<"not valid">>}],
-    ?assertException(throw, {error, {multiple_oneof, Expected}}, gpb_text:file(FileName)).
-
-message_with_group_test() ->
-    compile_and_load("message_with_group.proto"),
-    FileName = get_full_file_name("message_with_group.textproto"),
-    Expected = #{'MyGroup' => #{my_value => 1}},
-    ?assertEqual(Expected, gpb_text:file(FileName)).
-
-
-
-%% Helper functions
-
-compile_and_load(ProtoFile) ->
-    ok = gpb_compile:file(get_full_file_name(ProtoFile)),
-    IGPB = code:lib_dir(gpb, include),
-    BaseName = filename:basename(ProtoFile, ".proto"),
-    ErlFile = BaseName ++ ".erl",
-    {ok, _} = compile:file(get_full_file_name(ErlFile), [{i, IGPB}]),
-    {module, _} = code:load_file(list_to_atom(BaseName)).
-
-get_full_file_name(TextProtoFile) ->
-    TestDir = code:lib_dir(gpb_text, test),
-    filename:join([TestDir, "data", TextProtoFile]).
